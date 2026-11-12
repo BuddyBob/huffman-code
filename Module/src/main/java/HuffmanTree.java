@@ -7,6 +7,10 @@ public interface HuffmanTree extends Comparable<HuffmanTree> {
      * Ties are broken using the ASCII value of the character: the node
      * with the smaller ASCII value comes first.
      */
+
+    int freq();
+    int charAscii();
+
     public boolean comesBefore(HuffmanTree other);
 
     /**
@@ -28,4 +32,4 @@ public interface HuffmanTree extends Comparable<HuffmanTree> {
     @Override
     public int compareTo(HuffmanTree other);
 
-    }
+}

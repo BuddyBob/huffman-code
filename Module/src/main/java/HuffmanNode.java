@@ -13,13 +13,33 @@ public record HuffmanNode(int charAscii, int freq, HuffmanTree left, HuffmanTree
         implements HuffmanTree{
 
      public boolean comesBefore(HuffmanTree other) {
-        // TODO: implement
-        return false;
+        if (this.freq < other.freq()){
+            return true;
+        }
+        else if (this.freq > other.freq()){
+            return false;
+        }
+        else{
+            return this.charAscii() < other.charAscii();
+        }
     }
 
+    /*
+    Crete an internal node that has references to smaller and larger nodes
+    Make sure to push smaller freq or ascii to left and larger to right
+     */
     public HuffmanTree combine(HuffmanTree other) {
-        // TODO: implement
-        return null;
+        int decision = this.compareTo(other);
+        int totalFreq = this.freq() + other.freq();
+        int smallerAscii = Math.min(this.charAscii(), other.charAscii());
+
+        //push left
+        if (decision < 0) {
+            return new HuffmanNode(smallerAscii, totalFreq, this, other);
+        //push right
+        } else {
+            return new HuffmanNode(smallerAscii, totalFreq, other, this);
+        }
     }
 
     /**

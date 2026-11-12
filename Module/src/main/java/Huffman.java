@@ -34,7 +34,13 @@ public class Huffman {
      */
     public static int[] cntFreq(String filename) throws IOException {
         int[] freq = new int[NUM_CHARS];
-        // TODO: implement
+        try (InputStream input = new FileInputStream(filename)) {
+            int character;
+
+            while ((character = input.read()) != -1) {
+                freq[character]++;
+            }
+        }
         return freq;
     }
 
@@ -53,8 +59,28 @@ public class Huffman {
      *    character (no combine() call needed).
      */
     public static HuffmanNode createHuffTree(int[] freq) {
-        // TODO: implement
-        return null;
+        HQueue queue = new HuffmanQueue();
+
+        // Create a leaf for each character that appears.
+        for (int i = 0; i < freq.length; i++) {
+            if (freq[i] > 0) {
+                HuffmanLeaf leaf = new HuffmanLeaf(freq[i], (char) i);
+                queue.enqueue(leaf);
+            }
+        }
+
+        // Combine the two smallest trees until only one remains.
+        while (queue.count() > 1) {
+            //dequeue -> combine (takes care of everything in terms of ordering) -> enqueue the new node
+            HuffmanTree first = queue.dequeue();
+            HuffmanTree second = queue.dequeue();
+
+            HuffmanTree combined = first.combine(second);
+            queue.enqueue(combined);
+        }
+
+        // poll() returns null if the queue is empty.
+        return (HuffmanNode) queue.dequeue();
     }
 
     /**
@@ -72,9 +98,25 @@ public class Huffman {
     public static String[] createCode(HuffmanTree root) {
         String[] codes = new String[NUM_CHARS];
         Arrays.fill(codes, "");
-        // TODO: implement
+        buildCodes(root, "", codes);
         return codes;
     }
+
+    private static void buildCodes(HuffmanTree tree, String currentCode, String[] codes) {
+        if (tree == null) {
+            return;
+        }
+        HuffmanNode node = (HuffmanNode) tree;
+        // If there are no children, this is a leaf.
+        if (node.left() == null && node.right() == null) {
+            codes[node.charAscii()] = currentCode;
+            return;
+        }
+
+        buildCodes(node.left(), currentCode + "0", codes);
+        buildCodes(node.right(), currentCode + "1", codes);
+    }
+
 
     /**
      * Given a frequency array (as produced by cntFreq()), returns a
@@ -85,8 +127,22 @@ public class Huffman {
      * Example: for the text "aaabbbbcc" this returns "97 3 98 4 99 2".
      */
     public static String createHeader(int[] freq) {
-        // TODO: implement
-        return "";
+        StringBuilder header = new StringBuilder();
+
+        for (int i = 0; i < freq.length; i++) {
+            if (freq[i] > 0) {
+                // Add a space before every pair except the first one.
+                if (header.length() > 0) {
+                    header.append(" ");
+                }
+
+                header.append(i);
+                header.append(" ");
+                header.append(freq[i]);
+            }
+        }
+
+        return header.toString();
     }
 
     /**
@@ -102,8 +158,37 @@ public class Huffman {
      *  - Input file with only one unique character: should contain only the
      *    header line (e.g. "97 5") and nothing else - no second line of code bits.
      */
-    public static void huffmanEncode(String inFile, String outFile) throws IOException {
-        // TODO: implement
+    public static void huffmanEncode(String inFile, String outFile)
+            throws IOException {
+
+        int[] freq = cntFreq(inFile);
+        HuffmanNode root = createHuffTree(freq);
+
+        try (BufferedWriter writer = new BufferedWriter(new FileWriter(outFile))) {
+
+            // An empty input produces an empty output.
+            if (root == null) {
+                return;
+            }
+
+            writer.write(createHeader(freq));
+            writer.write("\n");
+
+            // A single character needs only the header.
+            if (root.left() == null && root.right() == null) {
+                return;
+            }
+
+            String[] codes = createCode(root);
+
+            try (InputStream input = new FileInputStream(inFile)) {
+                int character;
+
+                while ((character = input.read()) != -1) {
+                    writer.write(codes[character]);
+                }
+            }
+        }
     }
 
     /**
@@ -115,7 +200,20 @@ public class Huffman {
      */
     public static int[] parseHeader(String headerString) {
         int[] freq = new int[NUM_CHARS];
-        // TODO: implement
+
+        if (headerString == null || headerString.trim().isEmpty()) {
+            return freq;
+        }
+
+        String[] values = headerString.trim().split("\\s+");
+
+        for (int i = 0; i < values.length; i += 2) {
+            int character = Integer.parseInt(values[i]);
+            int count = Integer.parseInt(values[i + 1]);
+
+            freq[character] = count;
+        }
+
         return freq;
     }
 
@@ -134,7 +232,52 @@ public class Huffman {
      * The header's count alone tells you how many times that character occurred,
      * so write it out that many times directly.
      */
-    public static void huffmanDecode(String encodedFile, String decodeFile) throws IOException {
-        // TODO: implement
+    public static void huffmanDecode(String encodedFile, String decodeFile)
+            throws IOException {
+
+        try (BufferedReader reader = new BufferedReader(new FileReader(encodedFile));
+             OutputStream output = new FileOutputStream(decodeFile)) {
+
+            String header = reader.readLine();
+
+            // An empty encoded file produces an empty decoded file.
+            if (header == null || header.isEmpty()) {
+                return;
+            }
+
+            int[] freq = parseHeader(header);
+            HuffmanNode root = createHuffTree(freq);
+
+            if (root == null) {
+                return;
+            }
+
+            // For one unique character, the header provides the count.
+            if (root.left() == null && root.right() == null) {
+                for (int i = 0; i < root.freq(); i++) {
+                    output.write(root.charAscii());
+                }
+                return;
+            }
+
+            HuffmanNode current = root;
+            int bit;
+
+            while ((bit = reader.read()) != -1) {
+                if (bit == '0') {
+                    current = (HuffmanNode) current.left();
+                } else if (bit == '1') {
+                    current = (HuffmanNode) current.right();
+                } else {
+                    throw new IOException("Invalid encoded character: " + (char) bit);
+                }
+
+                // Once we reach a leaf, write its character and restart.
+                if (current.left() == null && current.right() == null) {
+                    output.write(current.charAscii());
+                    current = root;
+                }
+            }
+        }
     }
 }
